@@ -1,0 +1,105 @@
+---
+title: Nest.js Integration
+description: Integrate Better Auth with Nest.js.
+---
+
+Better Auth can be integrated with node based backend frameworks. The guide below will show you how to integrate Better Auth with Nest.js.
+
+Before you start, make sure you have a Better Auth instance configured. If you haven't done that yet, check out the [installation](/docs/installation).
+
+<Callout>
+Note that CommonJS (cjs) isn't supported. Use ECMAScript Modules (ESM) by setting `"type": "module"` in your `package.json` or configuring your `tsconfig.json` to use ES modules.
+</Callout>
+
+### Mount the handler
+
+To enable Better Auth to handle requests, we need to mount the handler to an API route. Create a catch-all route to manage all requests to `/api/auth/*` (or any other path specified in your Better Auth options).
+
+Add the following code to the your controller:
+
+```ts title="auth.controller.ts"
+import {
+All,
+Controller,
+InternalServerErrorException,
+Req,
+Res,
+} from '@nestjs/common';
+import { toNodeHandler } from 'better-auth/node';
+import { Request, Response } from 'express';
+import { AuthService } from './auth.service';
+
+@Controller('api/auth')
+export class AuthController {
+constructor(private readonly authService: AuthService) {}
+
+	@All('*')
+	async handleAuth(@Req() req: Request, @Res() res: Response) {
+		if (!this.authService.betterAuth) {
+			throw new InternalServerErrorException(
+				'Authentication service not initialized',
+			);
+		}
+		const authHandler = toNodeHandler(this.authService.betterAuth);
+		const result = await authHandler(req, res);
+		return result;
+	}
+}
+```
+
+And the following to the auth service :
+
+```ts title="auth.service.ts"
+import { Injectable } from '@nestjs/common';
+import { betterAuth } from 'better-auth';
+import { config } from 'process';
+
+@Injectable()
+export class AuthService {
+	public betterAuth: ReturnType<typeof betterAuth>;  
+	
+	constructor() {
+		const auth = betterAuth({
+			...config,
+		});
+		
+		this.betterAuth = auth;
+	}
+}
+```
+
+After that, we need to make sure Nest.js don't parse the request body before Better Auth. To do so, add those line to your main.ts : 
+
+```ts title="main.ts"
+const app = await NestFactory.create(AppModule, {
+  bodyParser: false,
+});
+```
+
+
+### Cors Configuration
+
+To add CORS (Cross-Origin Resource Sharing) support to your Nest.js server when integrating Better Auth, you can enable CORS in your main.ts. Below is an example showing how to configure CORS :
+
+```ts
+const app = await NestFactory.create(AppModule, {
+  bodyParser: false,
+});
+
+app.enableCors({
+  origin: 'http://localhost:3000',
+  credentials: true,
+});
+```
+
+
+
+### Getting the User Session
+
+To retrieve the user's session, you can use the `getSession` method provided by the `auth` object. This method requires the request headers to be passed in a specific format. To simplify this process, Better Auth provides a `fromNodeHeaders` helper function that converts Node.js request headers to the format expected by Better Auth (a `Headers` object).
+
+Here's an example of how to use `getSession` in an Express route:
+
+```ts title="user.controller.ts"
+
+```
